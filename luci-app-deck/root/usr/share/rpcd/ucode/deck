@@ -46,28 +46,22 @@ function merge(a, b) {
 	return a;
 }
 
-/* Process checks read /proc directly. Text matching (pgrep -f) is fooled by
- * any other process whose command line merely contains the same path. */
-function procs() {
-	const out = [];
-	for (let pid in (lsdir('/proc') ?? [])) {
-		if (!match(pid, /^[0-9]+$/)) continue;
-		const raw = readfile(`/proc/${pid}/cmdline`);
-		if (raw) push(out, split(raw, '\0'));
-	}
-	return out;
+/* Cheap process checks (this runs every few seconds on slow routers):
+ * - a script holding its flock() lock file shows up in /proc/locks
+ * - a core binary is found with one pidof call
+ * Never text-match command lines: other processes (pgrep, scripts) can
+ * contain the same path and cause false positives. */
+function file_locked(path) {
+	const st = stat(path);
+	if (!st) return false;
+	const locks = readfile('/proc/locks') ?? '';
+	return match(locks, regexp(`:${st.inode} `)) != null;
 }
 
-function script_running(path) {
-	for (let a in procs())
-		if (match(a[0] ?? '', /(^|\/)(ba|a)?sh$/) && a[1] == path) return true;
-	return false;
-}
-
-function binary_running(prefix) {
-	for (let a in procs())
-		if (index(a[0] ?? '', prefix) == 0) return true;
-	return false;
+function core_running(dir) {
+	const names = filter(lsdir(dir) ?? [], (n) => match(n, /^[A-Za-z0-9._-]+$/));
+	if (!length(names)) return false;
+	return length(trim(sh(`pidof ${join(' ', names)} 2>/dev/null`))) > 0;
 }
 
 /* ---------- hardware ---------- */
@@ -182,8 +176,8 @@ const providers = {
 			let appsec = null;
 			c.foreach('passwall2', 'global_app', (s) => { if (!appsec) appsec = s; });
 			const enabled = gsec?.enabled == '1';
-			const core_running = binary_running('/tmp/etc/passwall2/bin/');
-			const busy = script_running('/usr/share/passwall2/app.sh') || access(`${RUN}/vpn.lock`);
+			const core_up = core_running('/tmp/etc/passwall2/bin');
+			const busy = file_locked('/tmp/lock/passwall2.lock') || access(`${RUN}/vpn.lock`);
 			const node_id = gsec?.node;
 			const node = node_id ? c.get_all('passwall2', node_id) : null;
 			let active = node;
@@ -205,12 +199,12 @@ const providers = {
 
 			let state = 'off';
 			if (busy) state = 'switching';
-			else if (enabled && core_running) state = 'on';
+			else if (enabled && core_up) state = 'on';
 			else if (enabled) state = 'failed';
 
 			return {
 				provider: 'passwall2', app: 'PassWall 2', luci: 'admin/services/passwall2',
-				enabled, running: core_running, busy, state, core,
+				enabled, running: core_up, busy, state, core,
 				node: active ? { id: active['.name'], name: active.remarks ?? active['.name'],
 				                 protocol: active.protocol, type: active.type } : null,
 				shunt: (node?.protocol == '_shunt') ? node['.name'] : null
@@ -424,6 +418,7 @@ const methods = {
 			const c = cursor();
 			return {
 				time: time(),
+				cpu: map(slice(split(trim(split(readfile('/proc/stat') ?? 'cpu 0', '\n')[0]), /\s+/), 1, 8), (x) => +x),
 				board: ubus.call('system', 'board'),
 				info: ubus.call('system', 'info'),
 				temperature: temperature(),

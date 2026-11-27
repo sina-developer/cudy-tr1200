@@ -6,7 +6,7 @@
 (function () {
 'use strict';
 
-const VERSION = '0.2.2';
+const VERSION = '0.2.3';
 const NULL_SID = '00000000000000000000000000000000';
 const root = document.getElementById('root');
 
@@ -117,6 +117,12 @@ function sample(st) {
 	let rate = null;
 	if (last && now.t > last.t && rx >= last.rx && tx >= last.tx) rate = { down: (rx - last.rx) / (now.t - last.t), up: (tx - last.tx) / (now.t - last.t) };
 	state.lastSample = now;
+	if (st.cpu && state.lastCpu) {
+		const sum = (a) => a.reduce((x, y) => x + y, 0);
+		const dt = sum(st.cpu) - sum(state.lastCpu), di = (st.cpu[3] + (st.cpu[4] || 0)) - (state.lastCpu[3] + (state.lastCpu[4] || 0));
+		if (dt > 0) state.cpuPct = Math.max(0, Math.min(100, (1 - di / dt) * 100));
+	}
+	if (st.cpu) state.lastCpu = st.cpu;
 	if (rate) { state.hist.down.push(rate.down); state.hist.up.push(rate.up); if (state.hist.down.length > 60) { state.hist.down.shift(); state.hist.up.shift(); } state.rate = rate; }
 	return state.rate || null;
 }
@@ -310,10 +316,12 @@ function sourcesList(st, detailed) {
 function healthBlocks(st) {
 	const mem = st.info.memory, used = mem.total - (mem.available || mem.free), ov = st.storage.overlay || {};
 	const block = (name, pct, sub, warn) => {
+		if (name == 'CPU' && state.cpuPct == null) return `<figure class="block"><span class="dk-mono" style="font-size:13px">…</span><span class="col" aria-hidden="true"></span><figcaption>CPU<small>${esc(sub)}</small></figcaption></figure>`;
 		const n = Math.round(Math.min(100, Math.max(0, pct)) / 100 * 12), c = pct >= warn ? 'var(--dk-amber)' : 'var(--dk-ink)';
 		return `<figure class="block"><span class="dk-mono" style="font-size:13px">${Math.round(pct)} %</span><span class="col" role="img" aria-label="${esc(name)} ${Math.round(pct)} percent">${Array.from({ length: 12 }, (_, i) => `<span style="background:${i < n ? c : 'transparent'}"></span>`).join('')}</span><figcaption>${esc(name)}<small>${esc(sub)}</small></figcaption></figure>`;
 	};
-	const items = [ block('Load', st.info.load[0] / 65536 * 100, (st.info.load[0] / 65536).toFixed(2), 85), block('RAM', used / mem.total * 100, `${fmtBytes(used)} / ${fmtBytes(mem.total)}`, 75) ];
+	const load = (st.info.load[0] / 65536).toFixed(2);
+	const items = [ block('CPU', state.cpuPct != null ? state.cpuPct : 0, `load ${load}`, 85), block('RAM', used / mem.total * 100, `${fmtBytes(used)} / ${fmtBytes(mem.total)}`, 75) ];
 	if (st.storage.builtin && st.storage.builtin.total) items.push(block('Flash', (st.storage.builtin.total - st.storage.builtin.free) / st.storage.builtin.total * 100, `${fmtBytes(st.storage.builtin.total - st.storage.builtin.free)} / ${fmtBytes(st.storage.builtin.total)}`, 85));
 	if (ov.total) items.push(block(ov.external ? 'USB' : 'Storage', (ov.total - ov.free) / ov.total * 100, `${fmtBytes(ov.total - ov.free)} / ${fmtBytes(ov.total)}`, 85));
 	if (st.temperature != null) items.push(block('Temp', st.temperature, st.temperature.toFixed(0) + ' °C', 75));

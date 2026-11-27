@@ -51,10 +51,10 @@ led() { # led <name> off|on|blink <on_ms> <off_ms>
 	esac
 }
 
-# Process checks read /proc directly: pgrep -f is fooled by any process whose
-# command line merely contains the same path (for example another pgrep).
-pw2_core_running() { for f in /proc/[0-9]*/cmdline; do read -r c < "$f" 2>/dev/null; case "$c" in /tmp/etc/passwall2/bin/*) return 0;; esac; done 2>/dev/null; return 1; }
-pw2_app_running()  { for f in /proc/[0-9]*/cmdline; do c=$(tr '\0' ' ' < "$f" 2>/dev/null); case "$c" in "/bin/sh /usr/share/passwall2/app.sh "*|"sh /usr/share/passwall2/app.sh "*|"/bin/ash /usr/share/passwall2/app.sh "*) return 0;; esac; done; return 1; }
+# Cheap process checks: Passwall2's app.sh holds a flock() on its lock file
+# while it runs (visible in /proc/locks), and the core is found with pidof.
+pw2_core_running() { set -- $(ls /tmp/etc/passwall2/bin 2>/dev/null); [ $# -gt 0 ] && pidof "$@" >/dev/null; }
+pw2_app_running()  { set -- $(ls -i /tmp/lock/passwall2.lock 2>/dev/null); [ -n "$1" ] && grep -q ":$1 " /proc/locks; }
 
 vpn_state() {
 	if [ -x /etc/init.d/passwall2 ] && [ -f /etc/config/passwall2 ]; then
@@ -95,5 +95,6 @@ while true; do
 	if [ "$vs" = switching ]; then show switching
 	elif [ "$(cat $RUN/net.fails 2>/dev/null || echo 0)" -ge $FAILS_NEEDED ]; then show offline
 	else show $vs; fi
-	sleep 1
+	sleep 2
+	t=$((t+1))
 done
