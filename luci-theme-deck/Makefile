@@ -13,8 +13,8 @@ LUCI_PKGARCH:=all
 
 PKG_VERSION:=0.1.0
 PKG_RELEASE:=1
-PKG_LICENSE:=Apache-2.0 OFL-1.1
-PKG_LICENSE_FILES:=htdocs/luci-static/deck/fonts/OFL-BarlowCondensed.txt htdocs/luci-static/deck/fonts/OFL-JetBrainsMono.txt
+PKG_LICENSE:=Apache-2.0
+PKG_LICENSE_FILES:=
 PKG_MAINTAINER:=[MAINTAINER NAME] <[maintainer@example.com]>
 
 define Package/luci-theme-deck/postrm

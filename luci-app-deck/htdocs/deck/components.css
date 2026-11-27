@@ -2,10 +2,10 @@
  * Deck dashboard styles. Self-contained so the dashboard looks right under
  * any LuCI theme; luci-theme-deck shares the same tokens. */
 
-@font-face { font-family: 'Deck Display'; font-weight: 500; font-display: swap; src: url('/luci-static/deck/fonts/barlow-condensed-500.woff2') format('woff2'); }
-@font-face { font-family: 'Deck Display'; font-weight: 600; font-display: swap; src: url('/luci-static/deck/fonts/barlow-condensed-600.woff2') format('woff2'); }
-@font-face { font-family: 'Deck Display'; font-weight: 700; font-display: swap; src: url('/luci-static/deck/fonts/barlow-condensed-700.woff2') format('woff2'); }
-@font-face { font-family: 'Deck Mono'; font-weight: 400; font-display: swap; src: url('/luci-static/deck/fonts/jetbrains-mono-400.woff2') format('woff2'); }
+@font-face { font-family: 'Deck Display'; font-weight: 500; font-display: swap; src: url('/deck/fonts/barlow-condensed-500.woff2') format('woff2'); }
+@font-face { font-family: 'Deck Display'; font-weight: 600; font-display: swap; src: url('/deck/fonts/barlow-condensed-600.woff2') format('woff2'); }
+@font-face { font-family: 'Deck Display'; font-weight: 700; font-display: swap; src: url('/deck/fonts/barlow-condensed-700.woff2') format('woff2'); }
+@font-face { font-family: 'Deck Mono'; font-weight: 400; font-display: swap; src: url('/deck/fonts/jetbrains-mono-400.woff2') format('woff2'); }
 
 .dk {
 	--dk-bg: #0D0E0B; --dk-panel: #161713; --dk-sunk: #10110E; --dk-line: #2E2F29;
@@ -14,15 +14,12 @@
 	--dk-font: 'Deck Display', 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
 	--dk-mono: 'Deck Mono', 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
 	color: var(--dk-ink); font-family: var(--dk-font); font-size: 16px; line-height: 1.3;
-	display: flex; flex-direction: column; gap: 14px; padding-bottom: 32px;
-}
-:root[data-darkmode="false"] .dk, .dk.dk-light {
+	}
+.dk.dk-light {
 	--dk-bg: #E4E2DA; --dk-panel: #F7F6F2; --dk-sunk: #EEECE6; --dk-line: #C6C3B8;
 	--dk-ink: #191915; --dk-dim: #55534B; --dk-off: #DDDAD1;
 	--dk-amber: #B8741A; --dk-green: #2E8540; --dk-red: #C0392B; --dk-blue: #2F6FC4; --dk-on-red: #FFFFFF;
 }
-/* Under foreign themes, give the dashboard its own ground */
-body:not(.deck-theme) .dk { background: var(--dk-bg); padding: 18px; border-radius: 4px; }
 
 .dk *, .dk *::before, .dk *::after { box-sizing: border-box; }
 .dk a { color: inherit; }

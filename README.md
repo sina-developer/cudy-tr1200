@@ -6,7 +6,7 @@ Deck is two packages:
 
 | Package | What it does |
 |---|---|
-| **luci-app-deck** | A dashboard (Home, VPN, Network, Devices, System) that shows only what *your* router can do. It plugs into LuCI, so it uses LuCI's login, permissions and Save & Apply with automatic rollback. |
+| **luci-app-deck** | A standalone dashboard at `http://<router>/deck/` with its own login, side menu (bottom tabs on phones) and screens: Home, VPN, Network, Devices, System. It shows only what *your* router can do. It talks to the router through OpenWrt's ubus API with the root password; LuCI stays available as “Advanced”, and logging into Deck logs you into LuCI too. |
 | **luci-theme-deck** | The Deck look for every LuCI page, including app pages such as PassWall 2. Side menu, dark and light, phone layout. Built on LuCI's Bootstrap stylesheet so every LuCI widget keeps working. |
 
 Each package works on its own. Install both for the full look.
@@ -45,7 +45,7 @@ apk add --allow-untrusted ./luci-app-deck-*.apk ./luci-theme-deck-*.apk
 opkg install ./luci-app-deck_*.ipk ./luci-theme-deck_*.ipk
 ```
 
-Then open LuCI. The dashboard is the first menu item. To use the theme, pick **Deck** under System › System › Language and Style. Installing the theme does not switch to it by itself.
+Then open `http://<router>/deck/` (LuCI also gets a “Dashboard” menu item that opens it). To give LuCI's own pages the same look, pick **Deck** under System › System › Language and Style. Installing the theme does not switch to it by itself.
 
 Requirements: `luci-base`, `rpcd-mod-ucode`, `iw` (all standard on OpenWrt 23.05+).
 
@@ -74,8 +74,8 @@ luci-app-deck/
   root/usr/share/luci/menu.d/           menu entries
   root/usr/libexec/deck/{vpn,monitor,button}   VPN worker, internet/LED monitor, button hook
   root/etc/init.d/deck, root/etc/config/deck
-  htdocs/luci-static/resources/view/deck/*.js  pages
-  htdocs/luci-static/resources/deck/            shared helpers and styles
+  htdocs/deck/                          the standalone app: index.html, app.js, app.css, components.css, fonts
+  htdocs/luci-static/resources/view/deck/open.js   LuCI menu entry that opens /deck/
 luci-theme-deck/
   ucode/template/themes/deck/           header, footer, login
   htdocs/luci-static/deck/              cascade.css (Bootstrap base), deck.css (Deck layer), fonts

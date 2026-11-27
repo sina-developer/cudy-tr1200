@@ -21,9 +21,14 @@ provider() {
 	echo none
 }
 
+# Process checks read /proc directly: pgrep -f is fooled by any process whose
+# command line merely contains the same path (for example another pgrep).
+pw2_core_running() { for f in /proc/[0-9]*/cmdline; do read -r c < "$f" 2>/dev/null; case "$c" in /tmp/etc/passwall2/bin/*) return 0;; esac; done 2>/dev/null; return 1; }
+pw2_app_running()  { for f in /proc/[0-9]*/cmdline; do c=$(tr '\0' ' ' < "$f" 2>/dev/null); case "$c" in "/bin/sh /usr/share/passwall2/app.sh "*|"sh /usr/share/passwall2/app.sh "*|"/bin/ash /usr/share/passwall2/app.sh "*) return 0;; esac; done; return 1; }
+
 pw2_enabled() { [ "$(uci -q get passwall2.@global[0].enabled)" = 1 ]; }
-pw2_running() { pgrep -f "[/]tmp/etc/passwall2/bin/" >/dev/null; }
-pw2_busy()    { pgrep -f "[/]usr/share/passwall2/app.sh" >/dev/null; }
+pw2_running() { pw2_core_running; }
+pw2_busy()    { pw2_app_running; }
 pw2_set()     { [ "$(uci -q get passwall2.@global[0].enabled)" = "$1" ] || { uci set passwall2.@global[0].enabled="$1"; uci commit passwall2; }; }
 pw2_wait()    { i=0; while pw2_busy && [ $i -lt 180 ]; do sleep 1; i=$((i+1)); done; }
 

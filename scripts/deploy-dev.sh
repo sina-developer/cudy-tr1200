@@ -17,5 +17,5 @@ CFG_KEEP=$(ssh "$@" "$HOST" 'test -f /etc/config/deck && echo keep || true')
 chmod 0755 "$TMP"
 # Pack only the top-level folders (never "."), owned by root, and extract
 # without restoring owners, so nothing on the router changes owner or mode.
-COPYFILE_DISABLE=1 tar -C "$TMP" --uid 0 --gid 0 -cf - $(cd "$TMP" && ls) | ssh "$@" "$HOST" 'tar -C / -o -xf - && chmod 0755 /usr/libexec/deck/* /etc/init.d/deck && for f in /etc/uci-defaults/80-luci-app-deck /etc/uci-defaults/30_luci-theme-deck; do [ -f $f ] && sh $f && rm -f $f; done; echo deployed'
+COPYFILE_DISABLE=1 tar -C "$TMP" --uid 0 --gid 0 -cf - $(cd "$TMP" && ls) | ssh "$@" "$HOST" 'tar -C / -o -xf - && chmod 0755 /usr/libexec/deck/* /etc/init.d/deck && [ -f /etc/uci-defaults/30_luci-theme-deck ] && sh /etc/uci-defaults/30_luci-theme-deck; rm -f /etc/uci-defaults/80-luci-app-deck /etc/uci-defaults/30_luci-theme-deck; /etc/init.d/deck enabled || /etc/init.d/deck enable; rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/*; echo "deployed (run /etc/init.d/rpcd restart after backend changes)"'
 rm -rf "$TMP"

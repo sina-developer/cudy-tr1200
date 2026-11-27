@@ -3,59 +3,11 @@
 		"title": "Dashboard",
 		"order": 1,
 		"action": {
-			"type": "alias",
-			"path": "admin/deck/home"
+			"type": "view",
+			"path": "deck/open"
 		},
 		"depends": {
 			"acl": [ "luci-app-deck" ]
-		}
-	},
-
-	"admin/deck/home": {
-		"title": "Home",
-		"order": 1,
-		"action": {
-			"type": "view",
-			"path": "deck/home"
-		}
-	},
-
-	"admin/deck/vpn": {
-		"title": "VPN",
-		"order": 2,
-		"action": {
-			"type": "view",
-			"path": "deck/vpn"
-		},
-		"depends": {
-			"fs": { "/etc/config/passwall2": "file" }
-		}
-	},
-
-	"admin/deck/network": {
-		"title": "Network",
-		"order": 3,
-		"action": {
-			"type": "view",
-			"path": "deck/network"
-		}
-	},
-
-	"admin/deck/devices": {
-		"title": "Devices",
-		"order": 4,
-		"action": {
-			"type": "view",
-			"path": "deck/devices"
-		}
-	},
-
-	"admin/deck/system": {
-		"title": "System",
-		"order": 5,
-		"action": {
-			"type": "view",
-			"path": "deck/system"
 		}
 	}
 }

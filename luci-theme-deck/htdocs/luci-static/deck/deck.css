@@ -3,11 +3,11 @@
  * Tokens, fonts, the side rail, and the component kit applied to LuCI's
  * standard elements so every LuCI page and app page gets the same look. */
 
-@font-face { font-family: 'Deck Display'; font-weight: 500; font-display: swap; src: url('fonts/barlow-condensed-500.woff2') format('woff2'); }
-@font-face { font-family: 'Deck Display'; font-weight: 600; font-display: swap; src: url('fonts/barlow-condensed-600.woff2') format('woff2'); }
-@font-face { font-family: 'Deck Display'; font-weight: 700; font-display: swap; src: url('fonts/barlow-condensed-700.woff2') format('woff2'); }
-@font-face { font-family: 'Deck Mono'; font-weight: 400; font-display: swap; src: url('fonts/jetbrains-mono-400.woff2') format('woff2'); }
-@font-face { font-family: 'Deck Mono'; font-weight: 500; font-display: swap; src: url('fonts/jetbrains-mono-500.woff2') format('woff2'); }
+@font-face { font-family: 'Deck Display'; font-weight: 500; font-display: swap; src: url('/deck/fonts/barlow-condensed-500.woff2') format('woff2'); }
+@font-face { font-family: 'Deck Display'; font-weight: 600; font-display: swap; src: url('/deck/fonts/barlow-condensed-600.woff2') format('woff2'); }
+@font-face { font-family: 'Deck Display'; font-weight: 700; font-display: swap; src: url('/deck/fonts/barlow-condensed-700.woff2') format('woff2'); }
+@font-face { font-family: 'Deck Mono'; font-weight: 400; font-display: swap; src: url('/deck/fonts/jetbrains-mono-400.woff2') format('woff2'); }
+@font-face { font-family: 'Deck Mono'; font-weight: 500; font-display: swap; src: url('/deck/fonts/jetbrains-mono-500.woff2') format('woff2'); }
 
 /* ---------- tokens ---------- */
 :root {

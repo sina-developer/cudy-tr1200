@@ -3,17 +3,20 @@
 		"description": "Grant access to the Deck dashboard",
 		"read": {
 			"ubus": {
-				"deck": [ "capabilities", "status", "devices", "events", "vpn_nodes" ],
-				"system": [ "board", "info" ]
+				"deck": [ "capabilities", "status", "devices", "events", "vpn_nodes", "vpn_rules", "wifi_scan" ],
+				"system": [ "board", "info" ],
+				"uci": [ "get" ]
 			},
-			"uci": [ "deck" ]
+			"uci": [ "deck", "wireless", "network", "dhcp", "system" ]
 		},
 		"write": {
 			"ubus": {
-				"deck": [ "vpn_set", "vpn_restart", "vpn_select" ],
-				"system": [ "reboot" ]
+				"deck": [ "vpn_set", "vpn_restart", "vpn_select", "wifi_reload" ],
+				"system": [ "reboot" ],
+				"uci": [ "set", "commit", "changes", "revert" ],
+				"session": [ "destroy" ]
 			},
-			"uci": [ "deck" ]
+			"uci": [ "deck", "wireless" ]
 		}
 	}
 }

@@ -46,8 +46,28 @@ function merge(a, b) {
 	return a;
 }
 
-function running(pattern) {
-	return length(trim(sh(`pgrep -f ${q(pattern)} 2>/dev/null`))) > 0;
+/* Process checks read /proc directly. Text matching (pgrep -f) is fooled by
+ * any other process whose command line merely contains the same path. */
+function procs() {
+	const out = [];
+	for (let pid in (lsdir('/proc') ?? [])) {
+		if (!match(pid, /^[0-9]+$/)) continue;
+		const raw = readfile(`/proc/${pid}/cmdline`);
+		if (raw) push(out, split(raw, '\0'));
+	}
+	return out;
+}
+
+function script_running(path) {
+	for (let a in procs())
+		if (match(a[0] ?? '', /(^|\/)(ba|a)?sh$/) && a[1] == path) return true;
+	return false;
+}
+
+function binary_running(prefix) {
+	for (let a in procs())
+		if (index(a[0] ?? '', prefix) == 0) return true;
+	return false;
 }
 
 /* ---------- hardware ---------- */
@@ -162,8 +182,8 @@ const providers = {
 			let appsec = null;
 			c.foreach('passwall2', 'global_app', (s) => { if (!appsec) appsec = s; });
 			const enabled = gsec?.enabled == '1';
-			const core_running = running('[/]tmp/etc/passwall2/bin/');
-			const busy = running('[/]usr/share/passwall2/app.sh') || access(`${RUN}/vpn.lock`);
+			const core_running = binary_running('/tmp/etc/passwall2/bin/');
+			const busy = script_running('/usr/share/passwall2/app.sh') || access(`${RUN}/vpn.lock`);
 			const node_id = gsec?.node;
 			const node = node_id ? c.get_all('passwall2', node_id) : null;
 			let active = node;
@@ -209,6 +229,30 @@ const providers = {
 				});
 			});
 			return out;
+		},
+		rules: function() {
+			const c = cursor();
+			let gnode = null;
+			c.foreach('passwall2', 'global', (s) => { if (!gnode) gnode = s.node; });
+			const shunt = gnode ? c.get_all('passwall2', gnode) : null;
+			if (!shunt || shunt.protocol != '_shunt') return { shunt: false, rules: [] };
+			const name_of = (v) => {
+				if (!v) return null;
+				if (v == '_direct') return 'Direct';
+				if (v == '_blackhole') return 'Block';
+				if (v == '_default') return 'Default node';
+				const n = c.get_all('passwall2', v);
+				return n ? (n.remarks ?? v) : v;
+			};
+			const out = [];
+			c.foreach('passwall2', 'shunt_rules', (r) => {
+				const dl = r.domain_list ? length(split(trim(r.domain_list), '\n')) : 0;
+				const il = r.ip_list ? length(split(trim(r.ip_list), '\n')) : 0;
+				push(out, { id: r['.name'], name: r.remarks ?? r['.name'], domains: dl, ips: il,
+				            target: name_of(shunt[r['.name']]), used: shunt[r['.name']] != null });
+			});
+			push(out, { id: '_default', name: 'Everything else', domains: null, ips: null, target: name_of(shunt.default_node), used: true });
+			return { shunt: true, rules: out };
 		},
 		set_enabled: function(on) {
 			const c = cursor();
@@ -474,6 +518,51 @@ const methods = {
 		call: function() {
 			const p = vpn_provider();
 			return p ? { provider: p.app, nodes: p.nodes() } : { provider: null, nodes: [] };
+		}
+	},
+
+	vpn_rules: {
+		call: function() {
+			const p = vpn_provider();
+			return p ? p.rules() : { shunt: false, rules: [] };
+		}
+	},
+
+	wifi_scan: {
+		args: { device: 'phy1-sta0' },
+		call: function(req) {
+			const dev = req.args?.device;
+			if (!dev || !match(dev, /^[a-zA-Z0-9._-]+$/)) return { error: 'bad device' };
+			const out = [];
+			let cur = null;
+			for (let line in split(sh(`iw dev ${q(dev)} scan 2>/dev/null`), '\n')) {
+				const b = match(line, /^BSS ([0-9a-fA-F:]+)/);
+				if (b) { cur = { bssid: uc(b[1]), ssid: null, signal: null, freq: null, channel: null, enc: 'open' }; push(out, cur); continue; }
+				if (!cur) continue;
+				let m;
+				if ((m = match(line, /^\s*SSID: (.*)$/))) cur.ssid = m[1];
+				else if ((m = match(line, /^\s*signal: (-?[0-9.]+)/))) cur.signal = +m[1];
+				else if ((m = match(line, /^\s*freq: ([0-9.]+)/))) cur.freq = +m[1];
+				else if ((m = match(line, /primary channel: ([0-9]+)/))) cur.channel = +m[1];
+				else if ((m = match(line, /^\s*DS Parameter set: channel ([0-9]+)/))) cur.channel = +m[1];
+				else if (match(line, /^\s*RSN:/)) cur.enc = 'wpa2';
+				else if (match(line, /SAE/)) cur.enc = 'wpa3';
+				else if (match(line, /^\s*WPA:/) && cur.enc == 'open') cur.enc = 'wpa';
+			}
+			for (let n in out) {
+				if (!n.channel && n.freq) n.channel = (n.freq >= 5000) ? int((n.freq - 5000) / 5) : int((n.freq - 2407) / 5);
+				n.dfs = (n.channel >= 52 && n.channel <= 144);
+			}
+			sort(out, (a, b) => (b.signal ?? -200) - (a.signal ?? -200));
+			return { results: filter(out, (n) => n.ssid) };
+		}
+	},
+
+	wifi_reload: {
+		call: function() {
+			sh(`logger -t deck 'dashboard -> wifi reload'`);
+			sh(`( sleep 1; /sbin/wifi reload >/dev/null 2>&1 & ) ; true`);
+			return { ok: true };
 		}
 	},
 

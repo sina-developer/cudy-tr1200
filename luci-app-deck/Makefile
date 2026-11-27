@@ -13,7 +13,8 @@ LUCI_PKGARCH:=all
 
 PKG_VERSION:=0.1.0
 PKG_RELEASE:=1
-PKG_LICENSE:=Apache-2.0
+PKG_LICENSE:=Apache-2.0 OFL-1.1
+PKG_LICENSE_FILES:=htdocs/deck/fonts/OFL-BarlowCondensed.txt htdocs/deck/fonts/OFL-JetBrainsMono.txt
 PKG_MAINTAINER:=[MAINTAINER NAME] <[maintainer@example.com]>
 
 define Package/luci-app-deck/conffiles

@@ -51,12 +51,17 @@ led() { # led <name> off|on|blink <on_ms> <off_ms>
 	esac
 }
 
+# Process checks read /proc directly: pgrep -f is fooled by any process whose
+# command line merely contains the same path (for example another pgrep).
+pw2_core_running() { for f in /proc/[0-9]*/cmdline; do read -r c < "$f" 2>/dev/null; case "$c" in /tmp/etc/passwall2/bin/*) return 0;; esac; done 2>/dev/null; return 1; }
+pw2_app_running()  { for f in /proc/[0-9]*/cmdline; do c=$(tr '\0' ' ' < "$f" 2>/dev/null); case "$c" in "/bin/sh /usr/share/passwall2/app.sh "*|"sh /usr/share/passwall2/app.sh "*|"/bin/ash /usr/share/passwall2/app.sh "*) return 0;; esac; done; return 1; }
+
 vpn_state() {
 	if [ -x /etc/init.d/passwall2 ] && [ -f /etc/config/passwall2 ]; then
 		up=$(cut -d. -f1 /proc/uptime)
 		en=$(uci -q get passwall2.@global[0].enabled)
-		run=0; pgrep -f "[/]tmp/etc/passwall2/bin/" >/dev/null && run=1
-		if pgrep -f "[/]usr/share/passwall2/app.sh" >/dev/null || [ -d $RUN/vpn.lock ] || { [ "$en" = 1 ] && [ $run = 0 ] && [ "$up" -lt 150 ]; }; then echo switching
+		run=0; pw2_core_running && run=1
+		if pw2_app_running || [ -d $RUN/vpn.lock ] || { [ "$en" = 1 ] && [ $run = 0 ] && [ "$up" -lt 150 ]; }; then echo switching
 		elif [ "$en" = 1 ]; then [ $run = 1 ] && echo on || echo failed
 		else echo off; fi
 	else
