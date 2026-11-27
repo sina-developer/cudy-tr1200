@@ -6,7 +6,7 @@
 (function () {
 'use strict';
 
-const VERSION = '0.2.3';
+const VERSION = '0.2.4';
 const NULL_SID = '00000000000000000000000000000000';
 const root = document.getElementById('root');
 
@@ -263,7 +263,10 @@ function pageHome() {
 	const hop = (cls, k, t, s, tcl) => `<li class="dk-hop ${cls}"><span class="k">${esc(k)}</span><span class="t ${tcl || ''}">${esc(t)}</span><span class="s">${esc(s || '')}</span></li>`;
 	const wire = (cls, label, c) => `<li class="dk-wire ${cls}" aria-hidden="true" style="--c:${c || 'var(--dk-green)'}"><span>${esc(label || '')}</span><i></i></li>`;
 	let path = hop('', 'Devices', String(online_devs.length), 'online now') + wire('ok flow') + hop('ok', 'Router', st.board.hostname, lanIp(st));
-	if (vpn) {
+	if (vpn && vpn.state == 'off') {
+		/* VPN off: traffic goes straight out, so draw a live direct line and leave the tunnel out of the path */
+		path += wire(up ? 'flow' : 'bad', up ? 'direct · not encrypted' : '', 'var(--dk-ink)');
+	} else if (vpn) {
 		const vs = vpn.state;
 		path += wire(vs == 'on' ? 'ok flow' : vs == 'switching' ? 'flow' : vs == 'failed' ? 'bad' : '', '', vs == 'switching' ? 'var(--dk-amber)' : null);
 		path += vs == 'on' ? hop('ok', 'VPN tunnel', vpn.node ? vpn.node.name : '?', (vpn.node && vpn.node.protocol || '').toUpperCase())
@@ -274,6 +277,7 @@ function pageHome() {
 	} else path += wire(up ? 'ok flow' : 'bad');
 	path += up ? hop(up.wireless ? 'blue' : 'ok', `Internet · ${up.name}`, up.wireless ? (up.ssid || 'Wi-Fi') : 'Cable', up.ipv4 || '') : hop('bad', 'Internet', 'No link', 'all uplinks down');
 	let bypass = '';
+	if (vpn && vpn.state == 'off') bypass = `<div class="dk-bypass"><span class="dk-label">VPN tunnel · off</span><span class="dk-dim" style="font-size:15px">Devices go straight to ${esc(up ? (up.wireless ? up.ssid || up.name : 'your provider') : 'the internet')} without encryption.</span><button class="dk-btn dk-btn-amber" style="margin-left:auto;min-height:40px" data-act="vpn-toggle">Turn VPN on</button></div>`;
 	if (vpn && vpn.state == 'on' && state.rules && state.rules.shunt) {
 		const direct = state.rules.rules.filter((r) => r.target == 'Direct' && r.used && r.id != '_default');
 		if (direct.length) bypass = `<div class="dk-bypass"><span class="dk-label">Skips the tunnel</span>${direct.map((r) => `<span class="dk-chip">${esc(r.name)}</span>`).join('')}<span class="dk-chip">Local network</span><a class="dk-more" style="margin-left:auto" href="#/vpn">Routing rules</a></div>`;
