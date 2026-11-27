@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<!-- Source of cover.png (1280x640). Demo data only. Re-render:
+     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --hide-scrollbars \
+       --window-size=1280,640 --screenshot=docs/assets/cover.png docs/assets/cover.html -->
+<html><head><meta charset="utf-8"><style>
+@font-face { font-family: D; font-weight: 600; src: url('../../luci-app-deck/htdocs/deck/fonts/barlow-condensed-600.woff2'); }
+@font-face { font-family: D; font-weight: 700; src: url('../../luci-app-deck/htdocs/deck/fonts/barlow-condensed-700.woff2'); }
+@font-face { font-family: M; font-weight: 400; src: url('../../luci-app-deck/htdocs/deck/fonts/jetbrains-mono-400.woff2'); }
+:root { --bg:#0D0E0B; --panel:#161713; --sunk:#10110E; --line:#2E2F29; --ink:#EEECE4; --dim:#A6A499; --off:#24251F; --amber:#F4B248; --green:#6BD47A; --blue:#7DB8FF; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1280px; height: 640px; overflow: hidden; background: var(--bg); color: var(--ink); font-family: D, sans-serif; }
+body { display: grid; grid-template-columns: 440px 1fr; gap: 40px; padding: 56px 56px 48px 64px;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 40px 40px; background-position: -1px -1px; }
+body::before { content: ""; position: fixed; inset: 0; background: radial-gradient(ellipse at 30% 45%, rgba(13,14,11,.55), var(--bg) 75%); z-index: 0; }
+.l, .r { position: relative; z-index: 1; }
+.l { display: flex; flex-direction: column; justify-content: center; gap: 22px; }
+.brand { display: flex; align-items: center; gap: 18px; }
+.brand svg { width: 78px; height: 78px; }
+h1 { font-size: 112px; font-weight: 700; line-height: .85; letter-spacing: .02em; }
+.tag { font-size: 34px; font-weight: 600; line-height: 1.08; }
+.tag em { font-style: normal; color: var(--green); }
+.pk { display: flex; flex-wrap: wrap; gap: 8px; }
+.pk span { font-family: M; font-size: 15px; padding: 6px 10px; border: 1px solid var(--line); background: var(--panel); color: var(--dim); }
+.pk span b { color: var(--ink); font-weight: 400; }
+.foot { font-size: 18px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.r { background: var(--panel); border: 1px solid var(--line); border-radius: 3px; display: grid; grid-template-columns: 64px 1fr; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.55); align-self: center; height: 528px; }
+.rail { background: var(--sunk); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 18px; }
+.rail i { width: 28px; height: 6px; background: var(--off); }
+.rail i.on { background: var(--green); }
+.rail svg { width: 34px; height: 34px; margin-bottom: 10px; }
+.main { padding: 26px 28px; display: flex; flex-direction: column; gap: 16px; }
+.k { font-size: 14px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.title { font-size: 46px; font-weight: 700; line-height: 1; }
+.title span { color: var(--green); }
+.path { display: flex; align-items: center; }
+.hop { border: 2px solid var(--line); background: var(--sunk); padding: 10px 13px; min-width: 118px; min-height: 84px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.hop .hk { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; opacity: .8; }
+.hop .ht { font-size: 27px; font-weight: 700; line-height: 1; }
+.hop .hs { font-family: M; font-size: 11px; opacity: .85; }
+.hop.ok { border-color: var(--green); }
+.hop.go { border-color: var(--green); background: var(--green); color: #111; }
+.hop.blue { border-color: var(--blue); }
+.wire { flex: 1; height: 4px; min-width: 18px; background: repeating-linear-gradient(90deg, var(--green) 0 10px, transparent 10px 16px); }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.card { border: 1px solid var(--line); background: var(--sunk); padding: 13px 15px; display: flex; flex-direction: column; gap: 6px; }
+.big { font-size: 38px; font-weight: 700; line-height: 1; }
+.bar { height: 8px; background: var(--off); }
+.bar b { display: block; height: 100%; background: var(--green); }
+.bar.a b { background: var(--amber); }
+.s { font-family: M; font-size: 12px; color: var(--dim); }
+.row { display: flex; justify-content: space-between; align-items: center; font-size: 18px; font-weight: 600; padding: 7px 0; border-top: 1px solid var(--line); }
+.row:first-of-type { border-top: 0; }
+.pill { font-family: M; font-size: 12px; padding: 3px 8px; border: 1px solid var(--green); color: var(--green); }
+.pill.d { border-color: var(--line); color: var(--dim); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); margin-right: 8px; box-shadow: 0 0 10px var(--ink); }
+.two { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
+</style></head><body>
+<div class="l">
+  <div class="brand"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="6" fill="#161713"/><rect x="12" y="14" width="40" height="8" fill="#6BD47A"/><rect x="12" y="28" width="40" height="8" fill="#F4B248"/><rect x="12" y="42" width="24" height="8" fill="#EEECE4"/></svg><h1>DECK</h1></div>
+  <p class="tag">A standalone dashboard and theme for <em>OpenWrt</em> routers.</p>
+  <div class="pk"><span><b>luci-app-deck</b></span><span><b>luci-theme-deck</b></span><span>OpenWrt 24.10 · 25.12</span><span>Apache-2.0</span></div>
+  <p class="foot">Shows only what your router can do</p>
+</div>
+<div class="r">
+  <div class="rail"><svg viewBox="0 0 64 64"><rect x="12" y="14" width="40" height="8" fill="#6BD47A"/><rect x="12" y="28" width="40" height="8" fill="#F4B248"/><rect x="12" y="42" width="24" height="8" fill="#EEECE4"/></svg><i class="on"></i><i></i><i></i><i></i><i></i></div>
+  <div class="main">
+    <div><p class="k">Home · router</p><p class="title">VPN on. <span>Internet OK.</span></p></div>
+    <div class="path">
+      <div class="hop blue"><span class="hk">Devices</span><span class="ht">6</span><span class="hs">on Wi-Fi + LAN</span></div><div class="wire"></div>
+      <div class="hop ok"><span class="hk">Router</span><span class="ht">Home</span><span class="hs">via WAN cable</span></div><div class="wire"></div>
+      <div class="hop go"><span class="hk">VPN</span><span class="ht">Server A</span><span class="hs">encrypted</span></div><div class="wire"></div>
+      <div class="hop ok"><span class="hk">Internet</span><span class="ht">OK</span><span class="hs">checked 4 s ago</span></div>
+    </div>
+    <div class="cards">
+      <div class="card"><span class="k">CPU</span><span class="big">24%</span><div class="bar"><b style="width:24%"></b></div><span class="s">load 0.41 · 580 MHz</span></div>
+      <div class="card"><span class="k">Memory</span><span class="big">47%</span><div class="bar a"><b style="width:47%"></b></div><span class="s">58 of 122 MB</span></div>
+      <div class="card"><span class="k">Storage</span><span class="big">USB</span><div class="bar"><b style="width:6%"></b></div><span class="s">0.4 of 7.3 GB</span></div>
+    </div>
+    <div class="two">
+      <div class="card">
+        <div class="row"><span>WAN cable</span><span class="pill">in use</span></div>
+        <div class="row"><span>Wi-Fi uplink · 5 GHz</span><span class="pill d">backup</span></div>
+        <div class="row"><span>My-Network · 2.4 GHz</span><span class="pill">6 clients</span></div>
+      </div>
+      <div class="card"><span class="k">On the router now</span>
+        <div class="row"><span><span class="dot"></span>Status LED</span><span class="s">solid</span></div>
+        <div class="row"><span>VPN switch</span><span class="pill">on</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>

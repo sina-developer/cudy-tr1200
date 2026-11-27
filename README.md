@@ -1,5 +1,7 @@
 # Deck
 
+![Deck: a standalone dashboard and theme for OpenWrt routers](docs/assets/cover.png)
+
 A simple dashboard and theme for OpenWrt routers.
 
 Deck is two packages:
