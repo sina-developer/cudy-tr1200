@@ -1,0 +1,23 @@
+# /etc/config/fstab with extroot on a USB stick.
+# 'block info' shows the UUID of your USB partition.
+
+config global
+	option anon_swap '0'
+	option anon_mount '0'
+	option auto_swap '1'
+	option auto_mount '1'
+	# give the USB stick time to appear before the root switch
+	option delay_root '5'
+	option check_fs '0'
+
+# The USB stick becomes /overlay (all installed packages and settings).
+config mount 'extroot'
+	option uuid '<USB_PARTITION_UUID>'
+	option target '/overlay'
+	option enabled '1'
+
+# The internal flash overlay stays reachable at /rwm.
+# Without the stick, the router boots from it (see sync-internal-flash.sh).
+config mount 'rwm'
+	option device '/dev/mtdblock6'
+	option target '/rwm'

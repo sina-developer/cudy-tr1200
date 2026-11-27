@@ -3,3 +3,6 @@
 *.apk
 /bin/
 /dist/
+
+# local-only router backups with secrets (never committed)
+/private/

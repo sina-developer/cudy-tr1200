@@ -15,7 +15,7 @@ PKG_VERSION:=0.1.0
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=
-PKG_MAINTAINER:=[MAINTAINER NAME] <[maintainer@example.com]>
+PKG_MAINTAINER:=Deck contributors
 
 define Package/luci-theme-deck/postrm
 #!/bin/sh

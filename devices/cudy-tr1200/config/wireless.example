@@ -1,0 +1,49 @@
+# /etc/config/wireless for a Cudy TR1200 v1.
+# Layout: 5 GHz radio receives (client of an upstream Wi-Fi),
+#         2.4 GHz radio broadcasts your own network.
+# Replace every <...> value. Do not commit your real file.
+
+config wifi-device 'radio0'
+	option type 'mac80211'
+	option path 'platform/10300000.wmac'
+	option band '2g'
+	option channel '1'
+	option htmode 'HT20'
+	option country '<COUNTRY_CODE>'
+
+# Your own network, on 2.4 GHz.
+config wifi-iface 'default_radio0'
+	option device 'radio0'
+	option network 'lan'
+	option mode 'ap'
+	option ssid '<YOUR_SSID>'
+	option encryption 'psk2'
+	option key '<YOUR_WIFI_PASSWORD>'
+
+config wifi-device 'radio1'
+	option type 'mac80211'
+	option path 'pci0000:00/0000:00:00.0/0000:01:00.0'
+	option band '5g'
+	# A client follows the upstream network's channel. The MT7613 has no DFS
+	# support, so the upstream network must be on a non-DFS channel (36-48, 149-165).
+	option channel '36'
+	option htmode 'VHT80'
+	option country '<COUNTRY_CODE>'
+
+# The 5 GHz access point stays off: the radio is busy being a client.
+config wifi-iface 'default_radio1'
+	option device 'radio1'
+	option network 'lan'
+	option mode 'ap'
+	option ssid 'OpenWrt'
+	option encryption 'none'
+	option disabled '1'
+
+# Wi-Fi uplink: connect to the upstream 5 GHz network.
+config wifi-iface 'wwan_sta'
+	option device 'radio1'
+	option mode 'sta'
+	option network 'wwan'
+	option ssid '<UPSTREAM_SSID>'
+	option encryption 'psk2'
+	option key '<UPSTREAM_WIFI_PASSWORD>'

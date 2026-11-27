@@ -1,0 +1,27 @@
+# /etc/config/network for a Cudy TR1200 v1 running OpenWrt 25.12.
+# Only the parts that differ from the OpenWrt defaults are shown here.
+# Replace every <...> value. Do not commit your real file.
+
+config interface 'lan'
+	option device 'br-lan'
+	option proto 'static'
+	option ip6assign '60'
+	# OpenWrt default is 192.168.1.1. Use a different subnet from your upstream router.
+	list ipaddr '<LAN_IP>/24'
+
+# Wired uplink (WAN port). Lower metric = preferred.
+config interface 'wan'
+	option device 'eth0.2'
+	option proto 'dhcp'
+	option metric '10'
+
+config interface 'wan6'
+	option device 'eth0.2'
+	option proto 'dhcpv6'
+	option metric '10'
+
+# Wi-Fi uplink (5 GHz client, see wireless.example). Used when the WAN cable
+# is unplugged or has no link: the route with the higher metric takes over.
+config interface 'wwan'
+	option proto 'dhcp'
+	option metric '20'

@@ -35,8 +35,6 @@ VPN credentials (server addresses, ports, keys, UUIDs) are never sent to the bro
 
 ## Install
 
-From a release (both packages are architecture-independent):
-
 ```sh
 # OpenWrt 25.12 and newer (apk)
 apk add --allow-untrusted ./luci-app-deck-*.apk ./luci-theme-deck-*.apk
@@ -45,41 +43,46 @@ apk add --allow-untrusted ./luci-app-deck-*.apk ./luci-theme-deck-*.apk
 opkg install ./luci-app-deck_*.ipk ./luci-theme-deck_*.ipk
 ```
 
-Then open `http://<router>/deck/` (LuCI also gets a “Dashboard” menu item that opens it). To give LuCI's own pages the same look, pick **Deck** under System › System › Language and Style. Installing the theme does not switch to it by itself.
+Then open `http://<router>/`: it now opens Deck (you can switch that off in Deck › System). Requirements: `luci-base`, `rpcd-mod-ucode`, `iw`, all standard on OpenWrt 23.05+. To give LuCI's own pages the same look, pick **Deck** under System › System › Language and Style.
 
-Requirements: `luci-base`, `rpcd-mod-ucode`, `iw` (all standard on OpenWrt 23.05+).
+Full details, settings and removal: **[docs/install.md](docs/install.md)**.
+
+## Documentation
+
+| | |
+|---|---|
+| [docs/install.md](docs/install.md) | installing, settings (`/etc/config/deck`), removing |
+| [docs/architecture.md](docs/architecture.md) | how the app, the ubus backend, the services and the theme fit together; backend API |
+| [docs/development.md](docs/development.md) | trying changes on a router, building packages, ucode pitfalls |
+
+### Device guides
+
+| Router | Guide |
+|---|---|
+| Cudy TR1200 v1 | [Full setup](devices/cudy-tr1200/README.md): OpenWrt, USB extroot, 5 GHz Wi-Fi uplink with WAN failover, Passwall2 + Xray (plain VLESS), LEDs and slider, backups. [Going back to Cudy firmware](devices/cudy-tr1200/REVERT.md). |
+
+Device guides use example configs with `<PLACEHOLDERS>`. Keep your real configs and `sysupgrade -b` backups in `private/` (git-ignored); they contain Wi-Fi passwords and VPN server details.
 
 ## Build from source
 
-Add the feed to an OpenWrt SDK or buildroot:
+The repository is an OpenWrt feed:
 
 ```sh
-echo "src-git deck [REPOSITORY URL]" >> feeds.conf
+echo "src-git deck <URL of this repository>" >> feeds.conf
 ./scripts/feeds update deck && ./scripts/feeds install -a -p deck
 make package/luci-app-deck/compile package/luci-theme-deck/compile
 ```
 
-GitHub Actions builds both packages for 24.10 (`.ipk`) and 25.12 (`.apk`) on every push; tagged versions (`v*`) are published as a release.
-
-## Develop on a router
-
-`scripts/deploy-dev.sh root@192.168.1.1` copies the files straight onto a router (no package manager). It never changes the owner or mode of existing folders and keeps an existing `/etc/config/deck`. After changing the backend plugin, run `/etc/init.d/rpcd restart` on the router (this logs out open LuCI sessions).
+GitHub Actions builds both packages for 24.10 (`.ipk`) and 25.12 (`.apk`) on every push; tagged versions (`v*`) are published as a release. To try changes on a router without packaging, use `scripts/deploy-dev.sh root@<router>` (see [docs/development.md](docs/development.md)).
 
 ## Layout
 
 ```
-luci-app-deck/
-  root/usr/share/rpcd/ucode/deck        backend: capabilities, status, devices, events, vpn_* (ubus object "deck")
-  root/usr/share/rpcd/acl.d/            permissions
-  root/usr/share/luci/menu.d/           menu entries
-  root/usr/libexec/deck/{vpn,monitor,button}   VPN worker, internet/LED monitor, button hook
-  root/etc/init.d/deck, root/etc/config/deck
-  htdocs/deck/                          the standalone app: index.html, app.js, app.css, components.css, fonts
-  htdocs/luci-static/resources/view/deck/open.js   LuCI menu entry that opens /deck/
-luci-theme-deck/
-  ucode/template/themes/deck/           header, footer, login
-  htdocs/luci-static/deck/              cascade.css (Bootstrap base), deck.css (Deck layer), fonts
-  htdocs/luci-static/resources/menu-deck.js
+luci-app-deck/        dashboard: standalone app (htdocs/deck), rpcd ucode backend, services, config
+luci-theme-deck/      LuCI theme: Bootstrap base + Deck layer, templates, side menu
+devices/              per-router guides, example configs and helper scripts
+docs/                 install, architecture, development
+scripts/deploy-dev.sh copy files onto a router for development
 ```
 
 ## Licence

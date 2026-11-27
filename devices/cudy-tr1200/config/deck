@@ -1,0 +1,25 @@
+# /etc/config/deck for the Cudy TR1200 v1 (LED status and the side slider).
+
+config deck 'main'
+	option home '1'
+
+config monitor 'monitor'
+	option enabled '1'
+	option interval '15'
+	option fails '2'
+	list url 'http://connectivitycheck.gstatic.com/generate_204'
+	list url 'http://cp.cloudflare.com/generate_204'
+
+config led 'led'
+	option enabled '1'
+	# white LED: all good / VPN states
+	option ok_led 'white:status'
+	# red LED: VPN core failed / no internet
+	option alert_led 'red:power'
+	option off_blip '5000'
+
+config button 'vpn_button'
+	# the side slider is BTN_0
+	option name 'BTN_0'
+	# slider on the "VPN" side reports "pressed"
+	option on_event 'pressed'
