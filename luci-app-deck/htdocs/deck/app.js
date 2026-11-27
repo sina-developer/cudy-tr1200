@@ -6,7 +6,7 @@
 (function () {
 'use strict';
 
-const VERSION = '0.2.4';
+const VERSION = '0.2.5';
 const NULL_SID = '00000000000000000000000000000000';
 const root = document.getElementById('root');
 
