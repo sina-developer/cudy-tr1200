@@ -1,0 +1,8 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Linked as /etc/rc.button/<name> by the deck init script when a VPN button
+# is configured (deck.vpn_button.name). procd runs it with $ACTION set.
+case "$ACTION" in
+	pressed|released) ( /usr/libexec/deck/vpn button "$ACTION" >/dev/null 2>&1 & ) ;;
+esac
+return 0 2>/dev/null || exit 0

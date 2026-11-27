@@ -1,0 +1,19 @@
+{
+	"luci-app-deck": {
+		"description": "Grant access to the Deck dashboard",
+		"read": {
+			"ubus": {
+				"deck": [ "capabilities", "status", "devices", "events", "vpn_nodes" ],
+				"system": [ "board", "info" ]
+			},
+			"uci": [ "deck" ]
+		},
+		"write": {
+			"ubus": {
+				"deck": [ "vpn_set", "vpn_restart", "vpn_select" ],
+				"system": [ "reboot" ]
+			},
+			"uci": [ "deck" ]
+		}
+	}
+}

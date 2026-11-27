@@ -1,0 +1,52 @@
+#!/bin/sh /etc/rc.common
+# SPDX-License-Identifier: Apache-2.0
+# Deck: internet monitor, optional LED status and optional VPN button.
+
+START=19
+USE_PROCD=1
+
+BTN_HOOK=/usr/libexec/deck/button
+
+link_button() {
+	local name
+	name=$(uci -q get deck.vpn_button.name)
+	# remove our hook from any button that is no longer configured
+	for f in /etc/rc.button/*; do
+		[ -L "$f" ] && [ "$(readlink "$f")" = "$BTN_HOOK" ] && [ "${f##*/}" != "$name" ] && rm -f "$f"
+	done
+	[ -n "$name" ] || return 0
+	if [ -e "/etc/rc.button/$name" ] && [ "$(readlink "/etc/rc.button/$name")" != "$BTN_HOOK" ]; then
+		logger -t deck "button $name already has its own handler, not taking it over"
+		return 0
+	fi
+	ln -sf "$BTN_HOOK" "/etc/rc.button/$name"
+}
+
+sync_button() {
+	# Read a two-position switch at boot so the VPN matches it.
+	local name label state
+	name=$(uci -q get deck.vpn_button.name)
+	[ -n "$name" ] && [ "$(readlink "/etc/rc.button/$name")" = "$BTN_HOOK" ] || return 0
+	state=$(ucode -e 'let m=loadfile("/usr/share/rpcd/ucode/deck")().deck; for (let b in m.capabilities.call({}).buttons) if (b.name==ARGV[0]) print(b.state ?? "");' -- "$name" 2>/dev/null)
+	[ -n "$state" ] && ACTION=$state /usr/libexec/deck/vpn button "$state"
+}
+
+boot() {
+	grep -q debugfs /proc/mounts || mount -t debugfs none /sys/kernel/debug 2>/dev/null
+	link_button
+	sync_button
+	start
+}
+
+start_service() {
+	link_button
+	[ "$(uci -q get deck.monitor.enabled)" = 0 ] && return 0
+	procd_open_instance monitor
+	procd_set_param command /usr/libexec/deck/monitor
+	procd_set_param respawn
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger deck
+}

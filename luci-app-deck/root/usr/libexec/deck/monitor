@@ -1,0 +1,94 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Deck monitor: checks the internet every few seconds and records the result
+# in /var/run/deck for the dashboard. If deck.led.enabled=1 it also shows the
+# state on the router's LEDs:
+#   ok LED solid          VPN on and working (or no VPN app and online)
+#   ok LED fast blink     VPN starting or stopping
+#   ok LED short blip     VPN off, internet works
+#   alert LED blinking    VPN should be on but its core is not running
+#   alert LED solid       no internet
+
+. /lib/functions.sh
+
+RUN=/var/run/deck
+mkdir -p $RUN
+
+config_load deck
+config_get INTERVAL monitor interval 15
+config_get FAILS_NEEDED monitor fails 2
+config_get LED_ON led enabled 0
+config_get OK_LED led ok_led ''
+config_get ALERT_LED led alert_led ''
+config_get OFF_BLIP led off_blip 5000
+URLS=""
+add_url() { URLS="$URLS $1"; }
+config_list_foreach monitor url add_url
+[ -n "$URLS" ] || URLS="http://connectivitycheck.gstatic.com/generate_204"
+
+[ -n "$OK_LED" ] || OK_LED=$ALERT_LED
+[ -n "$ALERT_LED" ] || ALERT_LED=$OK_LED
+[ -d "/sys/class/leds/$OK_LED" ] || LED_ON=0
+[ -d "/sys/class/leds/$ALERT_LED" ] || LED_ON=0
+
+fetch() {
+	if command -v uclient-fetch >/dev/null; then uclient-fetch -q -T 8 -O /dev/null "$1"
+	elif command -v curl >/dev/null; then [ "$(curl -s -m 8 -o /dev/null -w '%{http_code}' "$1")" = 204 ]
+	else wget -q -T 8 -O /dev/null "$1"; fi
+}
+
+check() {
+	for u in $URLS; do fetch "$u" >/dev/null 2>&1 && { echo 0 > $RUN/net.fails; date +%s > $RUN/net.checked; return; }; done
+	f=$(cat $RUN/net.fails 2>/dev/null || echo 0); echo $((f+1)) > $RUN/net.fails; date +%s > $RUN/net.checked
+}
+
+led() { # led <name> off|on|blink <on_ms> <off_ms>
+	p=/sys/class/leds/$1
+	case $2 in
+	off)   echo none > $p/trigger; echo 0 > $p/brightness ;;
+	on)    echo none > $p/trigger; cat $p/max_brightness > $p/brightness ;;
+	blink) echo timer > $p/trigger; echo $3 > $p/delay_on; echo $4 > $p/delay_off ;;
+	esac
+}
+
+vpn_state() {
+	if [ -x /etc/init.d/passwall2 ] && [ -f /etc/config/passwall2 ]; then
+		up=$(cut -d. -f1 /proc/uptime)
+		en=$(uci -q get passwall2.@global[0].enabled)
+		run=0; pgrep -f "[/]tmp/etc/passwall2/bin/" >/dev/null && run=1
+		if pgrep -f "[/]usr/share/passwall2/app.sh" >/dev/null || [ -d $RUN/vpn.lock ] || { [ "$en" = 1 ] && [ $run = 0 ] && [ "$up" -lt 150 ]; }; then echo switching
+		elif [ "$en" = 1 ]; then [ $run = 1 ] && echo on || echo failed
+		else echo off; fi
+	else
+		echo none
+	fi
+}
+
+cur=""
+show() {
+	[ "$LED_ON" = 1 ] || return
+	[ "$1" = "$cur" ] && return
+	cur=$1
+	[ "$OK_LED" != "$ALERT_LED" ] && { led $OK_LED off; led $ALERT_LED off; }
+	case $1 in
+	on|none) led $OK_LED on ;;
+	switching) led $OK_LED blink 120 120 ;;
+	off)     led $OK_LED blink 150 $((OFF_BLIP-150)) ;;
+	failed)  led $ALERT_LED blink 400 400 ;;
+	offline) [ "$OK_LED" = "$ALERT_LED" ] && led $ALERT_LED blink 900 150 || led $ALERT_LED on ;;
+	esac
+	logger -t deck "led: $1"
+}
+
+echo 0 > $RUN/net.fails
+t=$INTERVAL
+while true; do
+	if [ $t -ge $INTERVAL ]; then t=0; check & fi
+	t=$((t+1))
+	vs=$(vpn_state)
+	echo $vs > $RUN/vpn.state
+	if [ "$vs" = switching ]; then show switching
+	elif [ "$(cat $RUN/net.fails 2>/dev/null || echo 0)" -ge $FAILS_NEEDED ]; then show offline
+	else show $vs; fi
+	sleep 1
+done

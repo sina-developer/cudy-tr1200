@@ -1,0 +1,27 @@
+
+config monitor 'monitor'
+	option enabled '1'
+	# seconds between internet checks
+	option interval '15'
+	# failed checks in a row before the internet counts as down
+	option fails '2'
+	list url 'http://connectivitycheck.gstatic.com/generate_204'
+	list url 'http://cp.cloudflare.com/generate_204'
+
+config led 'led'
+	# Show VPN / internet status on the router's LEDs.
+	# Off by default; turn on from Dashboard > System.
+	option enabled '0'
+	# LED for "all good" (e.g. white:status). Leave empty to use alert_led for everything.
+	option ok_led ''
+	# LED for problems (e.g. red:power). Leave empty to use ok_led for everything.
+	option alert_led ''
+	# blink period while VPN is off, in ms (short blip every N ms)
+	option off_blip '5000'
+
+config button 'vpn_button'
+	# A hardware switch or button that turns the VPN on and off.
+	# Empty = no button is used. Example: BTN_0 on the Cudy TR1200 slider.
+	option name ''
+	# which event means "VPN on" for a two-position switch: pressed or released
+	option on_event 'pressed'

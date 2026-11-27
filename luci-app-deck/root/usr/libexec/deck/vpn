@@ -1,0 +1,85 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Deck VPN worker: brings the VPN app's running state in line with its
+# on/off setting. One worker at a time; later requests make the running
+# worker check again instead of starting a second one.
+#
+#   vpn reconcile        start or stop to match the app's enabled setting
+#   vpn restart          restart the app (if enabled)
+#   vpn set on|off       change the setting, then reconcile
+#   vpn button <event>   called by the button hook (pressed/released)
+
+RUN=/var/run/deck
+LOCK=$RUN/vpn.lock
+AGAIN=$RUN/vpn.again
+mkdir -p $RUN
+
+log() { logger -t deck "$*"; }
+
+provider() {
+	[ -x /etc/init.d/passwall2 ] && [ -f /etc/config/passwall2 ] && { echo passwall2; return; }
+	echo none
+}
+
+pw2_enabled() { [ "$(uci -q get passwall2.@global[0].enabled)" = 1 ]; }
+pw2_running() { pgrep -f "[/]tmp/etc/passwall2/bin/" >/dev/null; }
+pw2_busy()    { pgrep -f "[/]usr/share/passwall2/app.sh" >/dev/null; }
+pw2_set()     { [ "$(uci -q get passwall2.@global[0].enabled)" = "$1" ] || { uci set passwall2.@global[0].enabled="$1"; uci commit passwall2; }; }
+pw2_wait()    { i=0; while pw2_busy && [ $i -lt 180 ]; do sleep 1; i=$((i+1)); done; }
+
+work() {
+	# $1 = reconcile | restart
+	mode=$1
+	touch $AGAIN
+	mkdir $LOCK 2>/dev/null || exit 0
+	trap 'rmdir $LOCK 2>/dev/null' EXIT INT TERM
+	while [ -f $AGAIN ]; do
+		rm -f $AGAIN
+		sleep 2
+		case "$(provider)" in
+		passwall2)
+			pw2_wait
+			if pw2_enabled; then
+				if [ "$mode" = restart ]; then
+					log "restarting VPN"; /etc/init.d/passwall2 restart >/dev/null 2>&1
+				elif ! pw2_running; then
+					log "starting VPN"; /etc/init.d/passwall2 start >/dev/null 2>&1
+				fi
+				pw2_wait
+				pw2_running && log "VPN is ON" || log "VPN should be on but the core did not start"
+			else
+				if pw2_running || nft list tables 2>/dev/null | grep -q passwall2; then
+					log "stopping VPN"; /etc/init.d/passwall2 stop >/dev/null 2>&1; pw2_wait
+				fi
+				log "VPN is OFF"
+			fi
+			;;
+		esac
+		mode=reconcile
+	done
+}
+
+case "$1" in
+reconcile) work reconcile ;;
+restart)   work restart ;;
+set)
+	case "$(provider)" in passwall2) [ "$2" = on ] && pw2_set 1 || pw2_set 0 ;; esac
+	work reconcile
+	;;
+button)
+	on_event=$(uci -q get deck.vpn_button.on_event); on_event=${on_event:-pressed}
+	case "$2" in
+	pressed|released)
+		echo "$2" > $RUN/button.$(uci -q get deck.vpn_button.name)
+		if [ "$2" = "$on_event" ]; then want=on; else want=off; fi
+		log "button -> VPN $want"
+		case "$(provider)" in passwall2) [ $want = on ] && pw2_set 1 || pw2_set 0 ;; esac
+		# during boot only set the flag; the VPN app starts by itself
+		up=$(cut -d. -f1 /proc/uptime)
+		[ "$up" -lt 120 ] && exit 0
+		work reconcile
+		;;
+	esac
+	;;
+*) echo "usage: $0 reconcile|restart|set on|off|button pressed|released" >&2; exit 1 ;;
+esac

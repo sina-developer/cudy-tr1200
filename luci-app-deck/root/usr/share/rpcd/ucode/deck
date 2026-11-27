@@ -1,0 +1,515 @@
+// SPDX-License-Identifier: Apache-2.0
+// Deck: router status and capability detection for luci-app-deck.
+//
+// Everything here is read-only except the vpn_* methods, which only change
+// the VPN app's on/off switch and active node and hand the actual
+// start/stop to /usr/libexec/deck/vpn (one worker at a time).
+// VPN credentials (addresses, ports, keys, UUIDs) are never returned.
+
+'use strict';
+
+import { readfile, writefile, lsdir, access, popen, glob, stat, mkdir } from 'fs';
+import { cursor } from 'uci';
+import { connect } from 'ubus';
+import { statvfs } from 'luci.core';
+
+const RUN = '/var/run/deck';
+
+function rd(path) {
+	const s = readfile(path);
+	return (s == null) ? null : trim(replace(s, /\0/g, ''));
+}
+
+function sh(cmd) {
+	const f = popen(cmd);
+	if (!f) return '';
+	const out = f.read('all') ?? '';
+	f.close();
+	return out;
+}
+
+function q(s) {
+	return `'${replace(`${s}`, "'", "'\\''")}'`;
+}
+
+function bytes_be(path) {
+	const raw = readfile(path);
+	if (raw == null) return null;
+	let n = 0;
+	for (let i = 0; i < length(raw); i++)
+		n = n * 256 + ord(raw, i);
+	return n;
+}
+
+function merge(a, b) {
+	for (let k in (b ?? {})) a[k] = b[k];
+	return a;
+}
+
+function running(pattern) {
+	return length(trim(sh(`pgrep -f ${q(pattern)} 2>/dev/null`))) > 0;
+}
+
+/* ---------- hardware ---------- */
+
+const BUTTON_NAMES = {
+	'256': 'BTN_0', '257': 'BTN_1', '258': 'BTN_2', '259': 'BTN_3', '260': 'BTN_4',
+	'116': 'power', '142': 'sleep', '247': 'rfkill', '408': 'reset', '529': 'wps'
+};
+
+function leds() {
+	const out = [];
+	for (let name in (lsdir('/sys/class/leds') ?? [])) {
+		const base = `/sys/class/leds/${name}`;
+		const trig = match(rd(`${base}/trigger`) ?? '', /\[([^\]]+)\]/);
+		const color = match(name, /(red|green|blue|white|amber|orange|yellow|purple)/);
+		push(out, {
+			name,
+			color: color ? color[1] : null,
+			brightness: +(rd(`${base}/brightness`) ?? 0),
+			max_brightness: +(rd(`${base}/max_brightness`) ?? 1),
+			trigger: trig ? trig[1] : 'none',
+			system: (index(name, 'mt76') == 0 || index(name, 'phy') == 0)
+		});
+	}
+	return out;
+}
+
+function gpio_levels() {
+	// Only read if debugfs is already mounted; never mount from here.
+	const txt = readfile('/sys/kernel/debug/gpio');
+	const lv = {};
+	if (!txt) return lv;
+	for (let line in split(txt, '\n')) {
+		const m = match(line, /\|([^ )]+) *\) +in +(hi|lo)/);
+		if (m) lv[m[1]] = { level: m[2], active_low: index(line, 'ACTIVE LOW') >= 0 };
+	}
+	return lv;
+}
+
+function buttons() {
+	const out = [];
+	const lv = gpio_levels();
+	for (let codefile in (glob('/sys/firmware/devicetree/base/*keys*/*/linux,code') ?? [])) {
+		const dir = replace(codefile, /\/linux,code$/, '');
+		const code = bytes_be(codefile);
+		const itype = bytes_be(`${dir}/linux,input-type`);
+		const label = rd(`${dir}/label`) ?? replace(dir, /^.*\//, '');
+		const name = BUTTON_NAMES[`${code}`] ?? `code_${code}`;
+		const is_switch = (itype == 5);
+		let state = rd(`${RUN}/button.${name}`);
+		if (!state && lv[label]) {
+			const g = lv[label];
+			const pressed = g.active_low ? (g.level == 'lo') : (g.level == 'hi');
+			state = pressed ? 'pressed' : 'released';
+		}
+		push(out, { name, label, code, switch: is_switch, state: state ?? null,
+		            handler: access(`/etc/rc.button/${name}`) ? `/etc/rc.button/${name}` : null });
+	}
+	return out;
+}
+
+function temperature() {
+	for (let p in (glob('/sys/class/thermal/thermal_zone*/temp') ?? [])) {
+		const v = +rd(p);
+		if (v > 0) return v / 1000;
+	}
+	for (let p in (glob('/sys/class/hwmon/hwmon*/temp*_input') ?? [])) {
+		const v = +rd(p);
+		if (v > 0) return v / 1000;
+	}
+	return null;
+}
+
+function mounts() {
+	const out = {};
+	for (let line in split(readfile('/proc/mounts') ?? '', '\n')) {
+		const f = split(line, ' ');
+		if (length(f) >= 3) out[f[1]] = { device: f[0], fstype: f[2] };
+	}
+	return out;
+}
+
+function disk(path) {
+	const v = statvfs(path);
+	if (!v) return null;
+	return { total: v.blocks * v.frsize, free: v.bavail * v.frsize };
+}
+
+function storage() {
+	const m = mounts();
+	const ov = m['/overlay'];
+	const usb = ov && match(ov.device, /^\/dev\/(sd|mmcblk|nvme)/);
+	return {
+		overlay: ov ? merge({ device: ov.device, fstype: ov.fstype, external: !!usb }, disk('/overlay') ?? {}) : null,
+		builtin: m['/rwm'] ? merge({ device: m['/rwm'].device }, disk('/rwm') ?? {}) : null,
+		tmp: disk('/tmp')
+	};
+}
+
+/* ---------- VPN providers ---------- */
+
+const providers = {
+	passwall2: {
+		id: 'passwall2',
+		detect: () => access('/etc/init.d/passwall2') && access('/etc/config/passwall2'),
+		app: 'PassWall 2',
+		luci: 'admin/services/passwall2',
+		status: function() {
+			const c = cursor();
+			let gsec = null;
+			c.foreach('passwall2', 'global', (s) => { if (!gsec) gsec = s; });
+			let appsec = null;
+			c.foreach('passwall2', 'global_app', (s) => { if (!appsec) appsec = s; });
+			const enabled = gsec?.enabled == '1';
+			const core_running = running('[/]tmp/etc/passwall2/bin/');
+			const busy = running('[/]usr/share/passwall2/app.sh') || access(`${RUN}/vpn.lock`);
+			const node_id = gsec?.node;
+			const node = node_id ? c.get_all('passwall2', node_id) : null;
+			let active = node;
+			if (node?.protocol == '_shunt' && node.default_node)
+				active = c.get_all('passwall2', node.default_node) ?? node;
+
+			let core = null;
+			const xf = appsec?.xray_file ?? '/usr/bin/xray';
+			const st = stat(xf);
+			if (st) {
+				const cache = `${RUN}/core.${st.mtime}`;
+				core = rd(cache);
+				if (!core) {
+					core = trim(split(sh(`${q(xf)} version 2>/dev/null | head -n1`), '(')[0]);
+					mkdir(RUN);
+					if (core) writefile(cache, core);
+				}
+			}
+
+			let state = 'off';
+			if (busy) state = 'switching';
+			else if (enabled && core_running) state = 'on';
+			else if (enabled) state = 'failed';
+
+			return {
+				provider: 'passwall2', app: 'PassWall 2', luci: 'admin/services/passwall2',
+				enabled, running: core_running, busy, state, core,
+				node: active ? { id: active['.name'], name: active.remarks ?? active['.name'],
+				                 protocol: active.protocol, type: active.type } : null,
+				shunt: (node?.protocol == '_shunt') ? node['.name'] : null
+			};
+		},
+		nodes: function() {
+			const c = cursor();
+			const out = [];
+			c.foreach('passwall2', 'nodes', (s) => {
+				if (!s.type) return;
+				push(out, {
+					id: s['.name'], name: s.remarks ?? s['.name'], type: s.type,
+					protocol: s.protocol ?? null, transport: s.transport ?? null,
+					tls: (s.tls == '1' || s.reality == '1'), complete: !!(s.address || s.protocol == '_shunt' || s.protocol == '_balancing'),
+					shunt: s.protocol == '_shunt'
+				});
+			});
+			return out;
+		},
+		set_enabled: function(on) {
+			const c = cursor();
+			c.foreach('passwall2', 'global', (s) => { c.set('passwall2', s['.name'], 'enabled', on ? '1' : '0'); });
+			c.commit('passwall2');
+		},
+		select: function(id) {
+			const c = cursor();
+			const target = c.get_all('passwall2', id);
+			if (!target || target['.type'] != 'nodes') return false;
+			let gname = null, cur = null;
+			c.foreach('passwall2', 'global', (s) => { if (!gname) { gname = s['.name']; cur = s.node; } });
+			const curnode = cur ? c.get_all('passwall2', cur) : null;
+			if (curnode?.protocol == '_shunt' && target.protocol != '_shunt')
+				c.set('passwall2', cur, 'default_node', id);
+			else
+				c.set('passwall2', gname, 'node', id);
+			c.commit('passwall2');
+			return true;
+		}
+	}
+};
+
+function vpn_provider() {
+	for (let k in keys(providers))
+		if (providers[k].detect()) return providers[k];
+	return null;
+}
+
+function kick_vpn_worker() {
+	sh(`( /usr/libexec/deck/vpn reconcile >/dev/null 2>&1 & ) ; true`);
+}
+
+/* ---------- wireless via iw (never call rpcd-provided objects like iwinfo
+ * from inside this plugin: rpcd would wait on itself) ---------- */
+
+function iw_link(dev) {
+	const out = sh(`iw dev ${q(dev)} link 2>/dev/null`);
+	const sig = match(out, /signal: (-?[0-9]+) dBm/);
+	const ssid = match(out, /SSID: ([^\n]+)/);
+	return { signal: sig ? +sig[1] : null, ssid: ssid ? ssid[1] : null };
+}
+
+function iw_channel(dev) {
+	const m = match(sh(`iw dev ${q(dev)} info 2>/dev/null`), /channel ([0-9]+)/);
+	return m ? +m[1] : null;
+}
+
+function iw_stations(dev) {
+	const out = [];
+	let cur = null;
+	for (let line in split(sh(`iw dev ${q(dev)} station dump 2>/dev/null`), '\n')) {
+		const st = match(line, /^Station ([0-9a-fA-F:]+)/);
+		if (st) { cur = { mac: uc(st[1]), signal: null, inactive: null, rx_rate: null, tx_rate: null }; push(out, cur); continue; }
+		if (!cur) continue;
+		let m;
+		if ((m = match(line, /^\s*signal:\s*(-?[0-9]+)/))) cur.signal = +m[1];
+		else if ((m = match(line, /^\s*inactive time:\s*([0-9]+)/))) cur.inactive = +m[1];
+		else if ((m = match(line, /^\s*rx bitrate:\s*([0-9.]+)/))) cur.rx_rate = +m[1];
+		else if ((m = match(line, /^\s*tx bitrate:\s*([0-9.]+)/))) cur.tx_rate = +m[1];
+	}
+	return out;
+}
+
+/* ---------- network ---------- */
+
+function wan_zone_networks() {
+	const c = cursor();
+	const nets = {};
+	c.foreach('firewall', 'zone', (z) => {
+		if (z.masq == '1' || z.name == 'wan')
+			for (let n in (type(z.network) == 'array' ? z.network : split(z.network ?? '', ' ')))
+				if (n) nets[n] = z.name;
+	});
+	return nets;
+}
+
+function uplinks(ubus) {
+	const nets = wan_zone_networks();
+	const dump = ubus.call('network.interface', 'dump')?.interface ?? [];
+	const out = [];
+	for (let i in dump) {
+		if (!nets[i.interface]) continue;
+		if (match(i.proto ?? '', /^dhcpv6|^6in4|^6to4/) && !i.up) continue;
+		let gw = null;
+		for (let r in (i.route ?? []))
+			if (r.target == '0.0.0.0' && r.mask == 0) gw = r.nexthop;
+		const dev = i.l3_device ?? i.device;
+		const wireless = !!(dev && (match(dev, /^phy\d+-sta|^wlan|-sta\d*$/)));
+		let signal = null, ssid = null;
+		if (wireless && i.up) {
+			const l = iw_link(dev);
+			signal = l.signal; ssid = l.ssid;
+		}
+		push(out, {
+			name: i.interface, proto: i.proto, up: !!i.up, device: dev,
+			ipv4: i['ipv4-address']?.[0]?.address ?? null, gateway: gw,
+			metric: i.metric ?? 0, uptime: i.uptime ?? 0, wireless, ssid, signal,
+			carrier: dev ? (rd(`/sys/class/net/${dev}/carrier`) == '1') : false,
+			rx_bytes: dev ? +(rd(`/sys/class/net/${dev}/statistics/rx_bytes`) ?? 0) : 0,
+			tx_bytes: dev ? +(rd(`/sys/class/net/${dev}/statistics/tx_bytes`) ?? 0) : 0
+		});
+	}
+	sort(out, (a, b) => (b.up - a.up) || (a.metric - b.metric));
+	return out;
+}
+
+function wifi(ubus) {
+	const st = ubus.call('network.wireless', 'status') ?? {};
+	const out = [];
+	for (let radio in st) {
+		const r = st[radio];
+		const ifs = [];
+		let band = r.config?.band ?? null, channel = r.config?.channel ?? null;
+		for (let i in (r.interfaces ?? [])) {
+			const cfg = i.config ?? {};
+			let clients = null, signal = null;
+			if (i.ifname) {
+				if (cfg.mode == 'ap') clients = length(iw_stations(i.ifname));
+				if (cfg.mode == 'sta') signal = iw_link(i.ifname).signal;
+				const ch = iw_channel(i.ifname);
+				if (ch) channel = ch;
+			}
+			push(ifs, { section: i.section, ifname: i.ifname ?? null, mode: cfg.mode, ssid: cfg.ssid,
+			            encryption: cfg.encryption ?? 'none', disabled: !!cfg.disabled || !i.ifname,
+			            clients, signal });
+		}
+		push(out, { radio, up: !!r.up, disabled: !!r.disabled, band, channel,
+		            htmode: r.config?.htmode ?? null, interfaces: ifs });
+	}
+	return out;
+}
+
+/* ---------- monitor state written by /usr/libexec/deck/monitor ---------- */
+
+function net_state() {
+	const fails = rd(`${RUN}/net.fails`);
+	const at = rd(`${RUN}/net.checked`);
+	return { checked: at ? +at : null, fails: fails ? +fails : null,
+	         online: fails == null ? null : (+fails < 2) };
+}
+
+/* ---------- methods ---------- */
+
+const methods = {
+	capabilities: {
+		call: function() {
+			const ubus = connect();
+			const p = vpn_provider();
+			const ls = filter(leds(), (l) => !l.system);
+			const st = storage();
+			return {
+				vpn: p ? { provider: p.id, app: p.app, luci: p.luci } : null,
+				leds: ls, buttons: buttons(),
+				radios: length(wifi(ubus)),
+				uplinks: map(uplinks(ubus), (u) => u.name),
+				external_storage: !!st.overlay?.external,
+				temperature: temperature() != null,
+				nlbwmon: access('/usr/sbin/nlbw'),
+				monitor: access('/etc/init.d/deck') && access(`${RUN}/net.checked`)
+			};
+		}
+	},
+
+	status: {
+		call: function() {
+			const ubus = connect();
+			const p = vpn_provider();
+			const c = cursor();
+			return {
+				time: time(),
+				board: ubus.call('system', 'board'),
+				info: ubus.call('system', 'info'),
+				temperature: temperature(),
+				storage: storage(),
+				vpn: p ? p.status() : null,
+				uplinks: uplinks(ubus),
+				wifi: wifi(ubus),
+				leds: filter(leds(), (l) => !l.system),
+				buttons: buttons(),
+				net: net_state(),
+				lan: c.get('network', 'lan', 'ipaddr'),
+				vpn_button: { name: c.get('deck', 'vpn_button', 'name') ?? null, on_event: c.get('deck', 'vpn_button', 'on_event') ?? 'pressed' }
+			};
+		}
+	},
+
+	devices: {
+		call: function() {
+			const ubus = connect();
+			const seen = {};
+			const dev = (mac) => {
+				mac = uc(mac);
+				if (!seen[mac]) seen[mac] = { mac, ip: null, name: null, online: false, via: null, signal: null, lease: null };
+				return seen[mac];
+			};
+			for (let line in split(readfile('/tmp/dhcp.leases') ?? '', '\n')) {
+				const f = split(line, ' ');
+				if (length(f) < 4) continue;
+				const d = dev(f[1]);
+				d.ip = f[2]; d.name = (f[3] != '*') ? f[3] : null; d.lease = +f[0];
+			}
+			let first = true;
+			for (let line in split(readfile('/proc/net/arp') ?? '', '\n')) {
+				if (first) { first = false; continue; }
+				const f = filter(split(line, ' '), (x) => x != '');
+				if (length(f) < 6 || f[3] == '00:00:00:00:00:00') continue;
+				if (match(f[5], /^(br-lan|eth0\.1|lan)/) == null && !match(f[5], /^br-/)) continue;
+				const d = dev(f[3]);
+				if (!d.ip) d.ip = f[0];
+				if (f[2] == '0x2') { d.online = true; if (!d.via) d.via = 'cable'; }
+			}
+			for (let w in wifi(ubus))
+				for (let i in w.interfaces) {
+					if (i.mode != 'ap' || !i.ifname) continue;
+					for (let s in iw_stations(i.ifname)) {
+						const d = dev(s.mac);
+						d.online = true; d.via = `wifi:${i.ssid}`; d.signal = s.signal;
+						d.rx_rate = s.rx_rate; d.tx_rate = s.tx_rate; d.inactive = s.inactive;
+					}
+				}
+			// names from static DHCP hosts
+			cursor().foreach('dhcp', 'host', (h) => {
+				for (let mac in (type(h.mac) == 'array' ? h.mac : split(h.mac ?? '', ' '))) {
+					const d = seen[uc(mac)];
+					if (d && h.name && !d.name) d.name = h.name;
+				}
+			});
+			return { devices: values(seen) };
+		}
+	},
+
+	events: {
+		args: { limit: 30 },
+		call: function(req) {
+			const lim = +(req.args?.limit ?? 30);
+			const out = [];
+			const lines = split(sh('logread -l 400 2>/dev/null'), '\n');
+			for (let i = length(lines) - 1; i >= 0 && length(out) < lim; i--) {
+				const l = lines[i];
+				// "Fri Nov 27 10:01:17 2026 daemon.notice netifd: message"
+				const f = split(l, ' ');
+				if (length(f) < 7) continue;
+				let o = 0;
+				if (f[2] == '') o = 1;   // single-digit day is padded with two spaces
+				const when = `${f[1]} ${f[2 + o]} ${f[3 + o]}`;
+				const tag = replace(replace(f[6 + o] ?? '', /:$/, ''), /\[[0-9]+\]$/, '');
+				const msg = join(' ', slice(f, 7 + o));
+				const m = [ null, when ];
+				let kind = null;
+				if (match(msg, /^led: /)) continue;   // LED pattern changes are noise here
+				if (tag == 'deck' || tag == 'vpnswitch' || tag == 'netled') kind = 'deck';
+				else if (tag == 'netifd' && match(msg, /Interface '.*' is now (up|down)/) && index(msg, "'loopback'") < 0) kind = 'net';
+				else if (match(tag, /passwall/)) kind = 'vpn';
+				else if (tag == 'procd' && match(msg, /- init -|- early -/)) kind = 'system';
+				if (kind) push(out, { time: m[1], tag, kind, text: msg });
+			}
+			return { events: out };
+		}
+	},
+
+	vpn_nodes: {
+		call: function() {
+			const p = vpn_provider();
+			return p ? { provider: p.app, nodes: p.nodes() } : { provider: null, nodes: [] };
+		}
+	},
+
+	vpn_set: {
+		args: { enabled: true },
+		call: function(req) {
+			const p = vpn_provider();
+			if (!p) return { error: 'no vpn provider' };
+			p.set_enabled(!!req.args?.enabled);
+			sh(`logger -t deck ${q(`dashboard -> VPN ${req.args?.enabled ? 'on' : 'off'}`)}`);
+			kick_vpn_worker();
+			return { ok: true };
+		}
+	},
+
+	vpn_restart: {
+		call: function() {
+			const p = vpn_provider();
+			if (!p) return { error: 'no vpn provider' };
+			sh(`logger -t deck 'dashboard -> VPN restart'`);
+			sh(`( /usr/libexec/deck/vpn restart >/dev/null 2>&1 & ) ; true`);
+			return { ok: true };
+		}
+	},
+
+	vpn_select: {
+		args: { node: 'id' },
+		call: function(req) {
+			const p = vpn_provider();
+			if (!p) return { error: 'no vpn provider' };
+			if (!p.select(req.args?.node)) return { error: 'unknown node' };
+			sh(`logger -t deck ${q(`dashboard -> node ${req.args.node}`)}`);
+			sh(`( /usr/libexec/deck/vpn restart >/dev/null 2>&1 & ) ; true`);
+			return { ok: true };
+		}
+	}
+};
+
+return { deck: methods };
