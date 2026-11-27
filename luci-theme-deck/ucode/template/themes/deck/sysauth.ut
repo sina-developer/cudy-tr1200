@@ -1,0 +1,33 @@
+{#
+ SPDX-License-Identifier: Apache-2.0
+ luci-theme-deck login page. Posts the same fields as LuCI's standard login.
+-#}
+
+{%
+	const boardinfo = ubus.call('system', 'board');
+%}
+{% include('header', { blank_page: true }) %}
+
+<main class="deck-login">
+	<form method="post" class="deck-login-card" autocomplete="on">
+		<div class="deck-login-board">{{ striptags(boardinfo.model ?? '') }} · {{ striptags(boardinfo.release?.description ?? '') }}</div>
+		<h1 class="deck-login-title">{{ striptags(boardinfo.hostname ?? 'OpenWrt') }}</h1>
+
+		{% if (fuser): %}
+		<div class="alert-message error" role="alert">{{ _('Invalid username and/or password! Please try again.') }}</div>
+		{% endif %}
+
+		<label class="deck-login-field" {{ duser == 'root' ? 'hidden' : '' }}>
+			<span>{{ _('Username') }}</span>
+			<input name="luci_username" type="text" autocomplete="username" value="{{ entityencode(duser, true) }}">
+		</label>
+		<label class="deck-login-field">
+			<span>{{ _('Router password') }}</span>
+			<input name="luci_password" type="password" autocomplete="current-password" autofocus>
+		</label>
+		<button class="btn cbi-button-positive important deck-login-btn" type="submit">{{ _('Log in') }}</button>
+		<p class="deck-login-help">{{ _('The same root password as SSH. Forgot it? Holding the reset button erases all settings.') }}</p>
+	</form>
+</main>
+
+{% include('footer', { blank_page: true }) %}

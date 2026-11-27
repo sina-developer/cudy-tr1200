@@ -1,0 +1,13 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Register the theme. It is offered under System > System > Language and Style;
+# the current theme is only replaced if LuCI is still on its stock default.
+if [ "$PKG_UPGRADE" != 1 ]; then
+	uci get luci.themes.Deck >/dev/null 2>&1 || {
+		uci batch <<-EOT
+			set luci.themes.Deck=/luci-static/deck
+			commit luci
+		EOT
+	}
+fi
+exit 0
