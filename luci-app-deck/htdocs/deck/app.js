@@ -6,7 +6,7 @@
 (function () {
 'use strict';
 
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 const NULL_SID = '00000000000000000000000000000000';
 const root = document.getElementById('root');
 
@@ -436,9 +436,10 @@ function pageSystem() {
 		${cap('Temperature sensor', caps.temperature ? 'available' : 'not on this hardware', !!caps.temperature)}
 	</ul><p class="dk-note">Settings for missing features are hidden. Nothing here is specific to one router model.</p>`);
 
-	const ledc = cfg.led || {}, mon = cfg.monitor || {}, vb = cfg.vpn_button || {};
+	const ledc = cfg.led || {}, mon = cfg.monitor || {}, vb = cfg.vpn_button || {}, main = cfg.main || {};
 	const e = (k, d) => (state.edits[k] != null ? state.edits[k] : d);
-	let settings = `<div class="field"><span class="lbl">Check the internet</span><button class="toggle" role="switch" aria-checked="${e('monitor.enabled', mon.enabled || '1') == '1'}" data-act="tgl" data-key="monitor.enabled" aria-label="Check the internet"><i></i></button><span class="help">Needed for the “No internet” status and the LED.</span></div>
+	let settings = `<div class="field"><span class="lbl">Open Deck at ${esc(location.host)}</span><button class="toggle" role="switch" aria-checked="${e('main.home', main.home || '1') == '1'}" data-act="tgl" data-key="main.home" aria-label="Open Deck as the router's home page"><i></i></button><span class="help">On: typing the router's address opens this dashboard. Off: it opens LuCI, as before.</span></div>
+		<div class="field"><span class="lbl">Check the internet</span><button class="toggle" role="switch" aria-checked="${e('monitor.enabled', mon.enabled || '1') == '1'}" data-act="tgl" data-key="monitor.enabled" aria-label="Check the internet"><i></i></button><span class="help">Needed for the “No internet” status and the LED.</span></div>
 		<div class="field"><label for="mi">Check every (seconds)</label><input class="in" id="mi" type="number" min="5" max="600" data-edit="monitor.interval" value="${esc(e('monitor.interval', mon.interval || '15'))}"></div>`;
 	if (leds.length) settings += `<div class="field"><span class="lbl">Show status on the LED</span><button class="toggle" role="switch" aria-checked="${e('led.enabled', ledc.enabled || '0') == '1'}" data-act="tgl" data-key="led.enabled" aria-label="Show status on the LED"><i></i></button><span class="help">Solid = VPN on. Fast blink = switching. Short blip = VPN off. Alert blinking = VPN core failed, solid = no internet.</span></div>
 		<div class="field"><label for="ol">LED for “all good”</label><select class="in" id="ol" data-edit="led.ok_led"><option value="">— none —</option>${leds.map((l) => `<option ${e('led.ok_led', ledc.ok_led) == l.name ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></div>

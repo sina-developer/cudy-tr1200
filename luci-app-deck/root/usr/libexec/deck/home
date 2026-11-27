@@ -1,0 +1,35 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Make http://<router>/ open Deck instead of LuCI, or undo that.
+#   home on    replace /www/index.html with a redirect to /deck/ (original kept)
+#   home off   put LuCI's original /www/index.html back
+IDX=/www/index.html
+BAK=/www/index.html.luci
+case "$1" in
+on)
+	grep -q 'deck-home' $IDX 2>/dev/null && exit 0
+	[ -f $IDX ] && [ ! -f $BAK ] && cp -p $IDX $BAK
+	cat > $IDX <<'HTML'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="deck-home" content="1">
+<meta http-equiv="refresh" content="0; URL=/deck/">
+<title>Router</title>
+<style>body{background:#0D0E0B;color:#EEECE4;font-family:sans-serif;padding:24px}a{color:#F4B248}</style>
+</head>
+<body>
+<a href="/deck/">Open the dashboard</a> · <a href="/cgi-bin/luci/">LuCI</a>
+</body>
+</html>
+HTML
+	;;
+off)
+	grep -q 'deck-home' $IDX 2>/dev/null || exit 0
+	if [ -f $BAK ]; then mv $BAK $IDX; else
+		printf '%s\n' '<!DOCTYPE html>' '<html><head><meta http-equiv="refresh" content="0; URL=cgi-bin/luci/"></head>' '<body><a href="cgi-bin/luci/">LuCI - Lua Configuration Interface</a></body></html>' > $IDX
+	fi
+	;;
+*) echo "usage: $0 on|off" >&2; exit 1 ;;
+esac

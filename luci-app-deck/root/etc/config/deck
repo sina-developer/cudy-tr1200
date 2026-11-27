@@ -1,4 +1,8 @@
 
+config deck 'main'
+	# open the dashboard at http://<router>/ instead of LuCI
+	option home '1'
+
 config monitor 'monitor'
 	option enabled '1'
 	# seconds between internet checks

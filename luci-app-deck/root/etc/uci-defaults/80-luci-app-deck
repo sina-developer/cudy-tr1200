@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 chmod 0755 /usr/libexec/deck/* 2>/dev/null
 /etc/init.d/deck enable
+[ "$(uci -q get deck.main.home)" = 0 ] || /usr/libexec/deck/home on
 /etc/init.d/deck start
 rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/* 2>/dev/null
 /etc/init.d/rpcd reload

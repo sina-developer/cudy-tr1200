@@ -26,6 +26,7 @@ define Package/luci-app-deck/prerm
 [ -n "$${IPKG_INSTROOT}" ] || {
 	/etc/init.d/deck stop 2>/dev/null
 	/etc/init.d/deck disable 2>/dev/null
+	/usr/libexec/deck/home off 2>/dev/null
 	for f in /etc/rc.button/*; do
 		[ -L "$$f" ] && [ "$$(readlink "$$f")" = /usr/libexec/deck/button ] && rm -f "$$f"
 	done
