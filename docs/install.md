@@ -11,7 +11,7 @@ Supported: OpenWrt 24.10 (`.ipk`, opkg) and 25.12 or newer (`.apk`).
 
 ## From a release
 
-Download the packages from the project's Releases page (or the build artifacts of the GitHub Actions run), copy them to the router and install:
+Download the packages from the [Releases page](https://github.com/sina-developer/cudy-tr1200/releases) (or the build artifacts of the GitHub Actions run), copy them to the router and install:
 
 ```sh
 scp -O luci-*-deck* root@192.168.1.1:/tmp/

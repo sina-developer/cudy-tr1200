@@ -68,7 +68,7 @@ Device guides use example configs with `<PLACEHOLDERS>`. Keep your real configs 
 The repository is an OpenWrt feed:
 
 ```sh
-echo "src-git deck <URL of this repository>" >> feeds.conf
+echo "src-git deck https://github.com/sina-developer/cudy-tr1200.git" >> feeds.conf
 ./scripts/feeds update deck && ./scripts/feeds install -a -p deck
 make package/luci-app-deck/compile package/luci-theme-deck/compile
 ```
