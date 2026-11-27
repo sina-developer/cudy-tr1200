@@ -6,7 +6,7 @@
 (function () {
 'use strict';
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 const NULL_SID = '00000000000000000000000000000000';
 const root = document.getElementById('root');
 
@@ -169,7 +169,7 @@ function shell(page, inner) {
 	const st = state.st, caps = state.caps;
 	const pages = PAGES.filter((p) => p[0] != 'vpn' || caps.vpn);
 	const nav = pages.map((p) => `<li><a href="#/${p[0]}" ${p[0] == page ? 'aria-current="page"' : ''}>${svg(p[2])}${p[1]}</a></li>`).join('')
-		+ `<li><a href="/cgi-bin/luci/" target="_blank" rel="noopener">${svg('adv')}LuCI</a></li>`;
+		+ `<li><a href="/cgi-bin/luci/admin/status/overview" target="_blank" rel="noopener">${svg('adv')}LuCI</a></li>`;
 	const tabs = pages.slice(0, 5).map((p) => `<a href="#/${p[0]}" ${p[0] == page ? 'aria-current="page"' : ''}>${svg(p[2])}${p[1]}</a>`).join('');
 	const dark = !root.classList.contains('dk-light');
 	return `<div class="app">

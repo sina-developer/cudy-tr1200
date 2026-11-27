@@ -1,7 +1,7 @@
 {
 	"admin/deck": {
 		"title": "Dashboard",
-		"order": 1,
+		"order": 95,
 		"action": {
 			"type": "view",
 			"path": "deck/open"
